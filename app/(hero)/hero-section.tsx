@@ -5,7 +5,7 @@ import Link from "next/link"
 
 const stats = [
   { value: "100+", label: "Cryptocurrencies" },
-  { value: "$0", label: "Risk to start" },
+  { value: "$0", label: "To start trading" },
   { value: "24/7", label: "Market access" },
   { value: "Live", label: "Price data" },
 ]

@@ -67,7 +67,7 @@ export function NavBar() {
                   </NavigationMenuLink>
                 </NavigationMenuItem>
                 <NavigationMenuItem>
-                  <NavigationMenuLink href="/markets" className={navigationMenuTriggerStyle()}>
+                  <NavigationMenuLink href="/markets/all" className={navigationMenuTriggerStyle()}>
                     Markets
                   </NavigationMenuLink>
                 </NavigationMenuItem>
@@ -172,7 +172,7 @@ export function NavBar() {
         {isMobileMenuOpen && (
           <div className="mt-4 flex flex-col gap-4 md:hidden">
             <a href="/about" onClick={() => setIsMobileMenuOpen(false)}>About</a>
-            <a href="/markets" onClick={() => setIsMobileMenuOpen(false)}>Markets</a>
+            <a href="/markets/all" onClick={() => setIsMobileMenuOpen(false)}>Markets</a>
             <a href="/trade" onClick={() => setIsMobileMenuOpen(false)}>Trade</a>
             {user && (
               <a href="/portfolio" onClick={() => setIsMobileMenuOpen(false)}>Portfolio</a>
