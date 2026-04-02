@@ -1,5 +1,7 @@
 "use client"
 
+import { useState } from "react"
+import { createClient } from "@/lib/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -7,24 +9,66 @@ import {
   Card,
   CardAction,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 
 interface LoginDialogProps {
-  isOpen: Boolean
+  isOpen: boolean
   onClose: () => void
+  onSwitchToRegister: () => void
 }
 
-export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
+export function LoginDialog({ isOpen, onClose, onSwitchToRegister }: LoginDialogProps) {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [role, setRole] = useState<"user" | "admin">("user")
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
   if (!isOpen) return null
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
+
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
+    }
+
+    if (role === "admin") {
+      const res = await fetch("/api/admin/check")
+      const { isAdmin } = await res.json()
+      if (!isAdmin) {
+        setError("This account does not have admin privileges.")
+        setLoading(false)
+        return
+      }
+    }
+
+    setLoading(false)
+    onClose()
+    window.location.href = role === "admin" ? "/admin" : "/"
+  }
+
+  const handleGoogleLogin = async () => {
+    const supabase = createClient()
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    })
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <Card className="w-full max-w-sm relative justify-center">
-
         <CardHeader>
           <CardTitle>Login to your account</CardTitle>
           <CardAction>
@@ -32,40 +76,70 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
           </CardAction>
         </CardHeader>
         <CardContent>
-          <form>
+          <form onSubmit={handleLogin}>
             <div className="flex flex-col gap-6">
+              <div className="grid gap-2">
+                <Label htmlFor="role">Login as</Label>
+                <select
+                  id="role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as "user" | "admin")}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="john@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
               <div className="grid gap-2">
                 <div className="flex items-center">
                   <Label htmlFor="password">Password</Label>
-                  <a
-                    href="#"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                  >
+                  <a href="#" className="ml-auto inline-block text-sm underline-offset-4 hover:underline">
                     Forgot your password?
                   </a>
                 </div>
-                <Input id="password" type="password" required />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
               </div>
+              {error && <p className="text-sm text-red-500">{error}</p>}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Logging in..." : "Login"}
+              </Button>
             </div>
           </form>
         </CardContent>
-        <CardFooter className="flex-col gap-2">
-          <Button type="submit" className="w-full hover:text-blue-600">
-            Login
-          </Button>
-          <Button className="w-full hover:text-blue-600">
-            Login with Google
-          </Button>
-        </CardFooter>
+        {role === "user" && (
+          <CardFooter className="flex-col gap-2">
+            <Button type="button" variant="outline" className="w-full" onClick={handleGoogleLogin}>
+              Login with Google
+            </Button>
+            <div className="text-center text-sm mt-2">
+              Don't have an account?{" "}
+              <a
+                href="#"
+                className="underline hover:text-blue-600"
+                onClick={(e) => { e.preventDefault(); onSwitchToRegister() }}
+              >
+                Register
+              </a>
+            </div>
+          </CardFooter>
+        )}
       </Card>
     </div>
   )
