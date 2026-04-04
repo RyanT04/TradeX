@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/client"
 import Link from "next/link"
 
 const stats = [
@@ -11,10 +12,24 @@ const stats = [
 ]
 
 export function Hero() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
   useEffect(() => {
     document.documentElement.classList.add("no-scrollbar")
     return () => document.documentElement.classList.remove("no-scrollbar")
   }, [])
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user)
+    })
+  }, [])
+
+  const lastSymbol = typeof window !== "undefined"
+    ? localStorage.getItem("lastTradedSymbol")
+    : null
+  const tradeHref = lastSymbol ? `/trade/${lastSymbol}` : "/trade"
 
   return (
     <main className="bg-white dark:bg-black text-black dark:text-white overflow-hidden" style={{ height: "calc(100vh - 57px)" }}>
@@ -32,7 +47,12 @@ export function Hero() {
         </p>
         <div className="flex items-center justify-center gap-4 mt-10">
           <Link
-            href="/"
+            href={isLoggedIn ? tradeHref : "/#register"}
+            onClick={!isLoggedIn ? (e) => {
+              e.preventDefault()
+              // trigger register dialog via custom event
+              window.dispatchEvent(new CustomEvent("open-register"))
+            } : undefined}
             className="px-6 py-3 bg-black dark:bg-white text-white dark:text-black text-sm font-medium rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
           >
             Start trading

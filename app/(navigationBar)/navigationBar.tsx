@@ -19,35 +19,77 @@ import {
   NavigationMenuList,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
-import { Menu, X, User2Icon, ChevronDown } from "lucide-react"
+import { Menu, X, ChevronDown, Settings, BarChart2 } from "lucide-react"
 import Link from "next/link"
 import type { User } from "@supabase/supabase-js"
+
+const PRESET_AVATARS: Record<string, string> = {
+  bear: "🐻", bull: "🐂", fox: "🦊", wolf: "🐺", lion: "🦁",
+  eagle: "🦅", shark: "🦈", dragon: "🐉", robot: "🤖", alien: "👾",
+  ninja: "🥷", astronaut: "👨‍🚀", wizard: "🧙", viking: "🪖", diamond: "💎",
+  fire: "🔥", lightning: "⚡", moon: "🌙", rocket: "🚀", crown: "👑",
+}
 
 export function NavBar() {
   const router = useRouter()
   const [user, setUser] = React.useState<User | null>(null)
+  const [username, setUsername] = React.useState<string | null>(null)
+  const [avatar, setAvatar] = React.useState<string | null>(null)
   const [isLoginOpen, setIsLoginOpen] = React.useState(false)
   const [isRegisterOpen, setIsRegisterOpen] = React.useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
 
+  async function fetchProfile(userId: string) {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("profiles")
+      .select("username, avatar_url")
+      .eq("id", userId)
+      .single()
+    if (data?.username) setUsername(data.username)
+    if (data?.avatar_url) setAvatar(data.avatar_url)
+  }
+
   React.useEffect(() => {
     const supabase = createClient()
 
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user)
+      if (user) fetchProfile(user.id)
+    })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => setUser(session?.user ?? null)
+      async (_event, session) => {
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          fetchProfile(session.user.id)
+        } else {
+          setUsername(null)
+          setAvatar(null)
+        }
+      }
     )
 
     return () => subscription.unsubscribe()
+  }, [])
+
+  React.useEffect(() => {
+    const handler = () => setIsRegisterOpen(true)
+    window.addEventListener("open-register", handler)
+    return () => window.removeEventListener("open-register", handler)
   }, [])
 
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
     setUser(null)
+    setUsername(null)
+    setAvatar(null)
     window.location.href = "/"
   }
+
+  const displayName = username ?? user?.email ?? "Account"
+  const avatarEmoji = avatar && PRESET_AVATARS[avatar] ? PRESET_AVATARS[avatar] : null
 
   return (
     <>
@@ -107,15 +149,22 @@ export function NavBar() {
             ) : (
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger className="flex items-center gap-2 outline-none hover:opacity-80 transition-opacity">
+                  {avatarEmoji && (
+                    <span className="text-lg leading-none">{avatarEmoji}</span>
+                  )}
                   <span className="text-sm font-medium text-black dark:text-white">
-                    {user.email}
+                    {displayName}
                   </span>
                   <ChevronDown className="w-4 h-4 text-gray-400" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" sideOffset={5}>
+                  <DropdownMenuItem onClick={() => router.push("/portfolio")}>
+                    <BarChart2 className="size-4 mr-2" />
+                    Portfolio
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => router.push("/settings")}>
-                    <User2Icon className="size-4 mr-2" />
-                    Preferences
+                    <Settings className="size-4 mr-2" />
+                    Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
@@ -130,16 +179,22 @@ export function NavBar() {
           <div className="flex items-center gap-3 md:hidden">
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger className="flex items-center gap-1 outline-none">
-                <span className="text-sm font-medium text-black dark:text-white truncate max-w-[140px]">
-                  {user ? user.email : "Account"}
+                {avatarEmoji && (
+                  <span className="text-lg leading-none">{avatarEmoji}</span>
+                )}
+                <span className="text-sm font-medium text-black dark:text-white truncate max-w-[120px]">
+                  {user ? displayName : "Account"}
                 </span>
                 <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {user ? (
                   <>
+                    <DropdownMenuItem onClick={() => router.push("/portfolio")}>
+                      Portfolio
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => router.push("/settings")}>
-                      Preferences
+                      Settings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout}>

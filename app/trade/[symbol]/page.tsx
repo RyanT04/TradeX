@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { createClient } from "@/lib/client"
 import { TrendingUp, TrendingDown } from "lucide-react"
 import Link from "next/link"
+import { LeveragedPanel } from "./Leveragedpanel"
 
 interface PageProps {
   params: Promise<{ symbol: string }>
@@ -43,6 +44,8 @@ const INTERVALS = [
   { label: "1D", value: "D" },
 ]
 
+type TradeMode = "spot" | "leverage"
+
 export default function TradePage({ params }: PageProps) {
   const [symbol, setSymbol] = useState("")
   const [coinName, setCoinName] = useState("")
@@ -60,6 +63,7 @@ export default function TradePage({ params }: PageProps) {
   const [position, setPosition] = useState<Position | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [tradeMode, setTradeMode] = useState<TradeMode>("spot")
 
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
@@ -84,9 +88,7 @@ export default function TradePage({ params }: PageProps) {
         if (data.image?.small) setCoinImage(data.image.small)
         if (data.id) setCoinId(data.id)
       })
-      .catch(() => {
-        setCoinName(symbol.replace("USDT", ""))
-      })
+      .catch(() => setCoinName(symbol.replace("USDT", "")))
   }, [symbol])
 
   useEffect(() => {
@@ -186,7 +188,6 @@ export default function TradePage({ params }: PageProps) {
       })
 
       seriesRef.current = series
-
       await loadKlineData(series, symbol, interval)
       setLoading(false)
 
@@ -196,12 +197,10 @@ export default function TradePage({ params }: PageProps) {
         }
       })
       ro.observe(chartContainerRef.current!)
-
       return () => { ro.disconnect() }
     }
 
     initChart()
-
     return () => {
       if (chartRef.current) {
         chartRef.current.remove()
@@ -218,9 +217,7 @@ export default function TradePage({ params }: PageProps) {
 
   async function loadKlineData(series: any, sym: string, int: string) {
     try {
-      const res = await fetch(
-        `https://api.bybit.com/v5/market/kline?category=spot&symbol=${sym}&interval=${int}&limit=200`
-      )
+      const res = await fetch(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${sym}&interval=${int}&limit=200`)
       const data = await res.json()
       const candles = data.result?.list ?? []
       const formatted = candles
@@ -242,9 +239,7 @@ export default function TradePage({ params }: PageProps) {
     if (!symbol) return
     const ws = new WebSocket("wss://stream.bybit.com/v5/public/spot")
     wsRef.current = ws
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ op: "subscribe", args: [`kline.${interval}.${symbol}`] }))
-    }
+    ws.onopen = () => ws.send(JSON.stringify({ op: "subscribe", args: [`kline.${interval}.${symbol}`] }))
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data)
       if (msg.data && msg.data[0] && seriesRef.current) {
@@ -289,7 +284,6 @@ export default function TradePage({ params }: PageProps) {
           return
         }
 
-        // clamp to actual balance to avoid floating point issues
         const actualUsdAmount = Math.min(usdAmount, balance)
         const actualCoinAmount = actualUsdAmount / currentPrice
         const newBalance = Math.max(0, balance - actualUsdAmount)
@@ -344,7 +338,6 @@ export default function TradePage({ params }: PageProps) {
 
       } else {
         const currentQty = position?.quantity ?? 0
-
         if (coinAmount > currentQty + 0.000001) {
           setOrderMessage({ text: "Insufficient holdings", type: "error" })
           setOrderLoading(false)
@@ -454,6 +447,7 @@ export default function TradePage({ params }: PageProps) {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
+          {/* Chart */}
           <div className="lg:col-span-3">
             <div className="flex items-center gap-1 mb-3">
               {INTERVALS.map((i) => (
@@ -481,184 +475,220 @@ export default function TradePage({ params }: PageProps) {
             </div>
           </div>
 
-          <div className="lg:col-span-1">
-            <div className="rounded-xl border border-gray-100 dark:border-gray-900 p-5 sticky top-6">
+          {/* Order panel */}
+          <div className="lg:col-span-1 space-y-4">
 
-              <div className="flex rounded-lg overflow-hidden border border-gray-100 dark:border-gray-900 mb-5">
-                <button
-                  onClick={() => setOrderType("buy")}
-                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                    orderType === "buy" ? "bg-green-500 text-white" : "text-gray-400 hover:text-black dark:hover:text-white"
-                  }`}
-                >
-                  Buy
-                </button>
-                <button
-                  onClick={() => setOrderType("sell")}
-                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                    orderType === "sell" ? "bg-red-500 text-white" : "text-gray-400 hover:text-black dark:hover:text-white"
-                  }`}
-                >
-                  Sell
-                </button>
-              </div>
+            {/* Mode tabs */}
+            <div className="flex rounded-lg overflow-hidden border border-gray-100 dark:border-gray-900">
+              <button
+                onClick={() => setTradeMode("spot")}
+                className={`flex-1 py-2 text-xs font-medium transition-colors ${
+                  tradeMode === "spot"
+                    ? "bg-black dark:bg-white text-white dark:text-black"
+                    : "text-gray-400 hover:text-black dark:hover:text-white"
+                }`}
+              >
+                Spot
+              </button>
+              <button
+                onClick={() => setTradeMode("leverage")}
+                className={`flex-1 py-2 text-xs font-medium transition-colors ${
+                  tradeMode === "leverage"
+                    ? "bg-black dark:bg-white text-white dark:text-black"
+                    : "text-gray-400 hover:text-black dark:hover:text-white"
+                }`}
+              >
+                ⚡ Leverage
+              </button>
+            </div>
 
-              <div className="mb-4 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-400">Cash balance</span>
-                  <span className="font-mono font-medium">${formatUSD(balance)}</span>
+            {tradeMode === "spot" ? (
+              <div className="rounded-xl border border-gray-100 dark:border-gray-900 p-5">
+
+                <div className="flex rounded-lg overflow-hidden border border-gray-100 dark:border-gray-900 mb-5">
+                  <button
+                    onClick={() => setOrderType("buy")}
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                      orderType === "buy" ? "bg-green-500 text-white" : "text-gray-400 hover:text-black dark:hover:text-white"
+                    }`}
+                  >
+                    Buy
+                  </button>
+                  <button
+                    onClick={() => setOrderType("sell")}
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                      orderType === "sell" ? "bg-red-500 text-white" : "text-gray-400 hover:text-black dark:hover:text-white"
+                    }`}
+                  >
+                    Sell
+                  </button>
                 </div>
-                {position && position.quantity > 0 && (
+
+                <div className="mb-4 space-y-2">
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-400">{coinSymbol} held</span>
-                    <span className="font-mono font-medium">{position.quantity.toFixed(6)}</span>
+                    <span className="text-gray-400">Cash balance</span>
+                    <span className="font-mono font-medium">${formatUSD(balance)}</span>
+                  </div>
+                  {position && position.quantity > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">{coinSymbol} held</span>
+                      <span className="font-mono font-medium">{position.quantity.toFixed(6)}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 mb-3">
+                  <button
+                    onClick={() => setAmountType("usd")}
+                    className={`text-xs px-2 py-1 rounded transition-colors ${amountType === "usd" ? "bg-gray-100 dark:bg-gray-900 font-medium" : "text-gray-400"}`}
+                  >
+                    USD
+                  </button>
+                  <button
+                    onClick={() => setAmountType("coin")}
+                    className={`text-xs px-2 py-1 rounded transition-colors ${amountType === "coin" ? "bg-gray-100 dark:bg-gray-900 font-medium" : "text-gray-400"}`}
+                  >
+                    {coinSymbol}
+                  </button>
+                </div>
+
+                <div className="relative mb-3">
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-colors font-mono"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                    {amountType === "usd" ? "USD" : coinSymbol}
+                  </span>
+                </div>
+
+                {orderType === "buy" && (
+                  <div className="flex gap-1 mb-4">
+                    {[25, 50, 75, 100].map((pct) => (
+                      <button
+                        key={pct}
+                        onClick={() => { setAmount(((balance * pct) / 100).toFixed(2)); setAmountType("usd") }}
+                        className="flex-1 text-xs py-1 border border-gray-200 dark:border-gray-800 rounded hover:bg-gray-50 dark:hover:bg-gray-950 transition-colors text-gray-400"
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {orderType === "sell" && position && (
+                  <div className="flex gap-1 mb-4">
+                    {[25, 50, 75, 100].map((pct) => (
+                      <button
+                        key={pct}
+                        onClick={() => { setAmount(((position.quantity * pct) / 100).toFixed(6)); setAmountType("coin") }}
+                        className="flex-1 text-xs py-1 border border-gray-200 dark:border-gray-800 rounded hover:bg-gray-50 dark:hover:bg-gray-950 transition-colors text-gray-400"
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {amount && ticker && parseFloat(amount) > 0 && (
+                  <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-950 rounded-lg space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Price</span>
+                      <span className="font-mono">${formatPrice(ticker.lastPrice)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">{coinSymbol} amount</span>
+                      <span className="font-mono">{orderCoinValue.toFixed(6)}</span>
+                    </div>
+                    <div className="flex justify-between font-medium border-t border-gray-200 dark:border-gray-800 pt-1.5">
+                      <span className="text-gray-400">Total</span>
+                      <span className="font-mono">${formatUSD(orderUsdValue)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {isLoggedIn ? (
+                  <button
+                    onClick={handleOrder}
+                    disabled={orderLoading || !amount || parseFloat(amount) <= 0}
+                    className={`w-full py-3 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
+                      orderType === "buy"
+                        ? "bg-green-500 hover:bg-green-600 text-white"
+                        : "bg-red-500 hover:bg-red-600 text-white"
+                    }`}
+                  >
+                    {orderLoading ? "Processing..." : orderType === "buy" ? `Buy ${coinSymbol}` : `Sell ${coinSymbol}`}
+                  </button>
+                ) : (
+                  <Link href="/" className="block w-full py-3 text-sm font-medium text-center rounded-lg bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors">
+                    Log in to trade
+                  </Link>
+                )}
+
+                {orderMessage && (
+                  <div className={`mt-3 p-3 rounded-lg text-xs ${
+                    orderMessage.type === "success"
+                      ? "bg-green-50 dark:bg-green-950 text-green-600 dark:text-green-400"
+                      : "bg-red-50 dark:bg-red-950 text-red-500"
+                  }`}>
+                    {orderMessage.text}
+                  </div>
+                )}
+
+                {position && position.quantity > 0 && ticker && (
+                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-900 space-y-1.5 text-xs">
+                    <p className="text-gray-400 font-medium mb-2">Your position</p>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Quantity</span>
+                      <span className="font-mono">{position.quantity.toFixed(6)} {coinSymbol}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Avg buy price</span>
+                      <span className="font-mono">${formatPrice(position.avg_buy_price)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Current value</span>
+                      <span className="font-mono">${formatUSD(position.quantity * ticker.lastPrice)}</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span className="text-gray-400">P&L</span>
+                      <span className={`font-mono ${
+                        position.quantity * ticker.lastPrice - position.quantity * position.avg_buy_price >= 0
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-500"
+                      }`}>
+                        {(() => {
+                          const pnl = position.quantity * ticker.lastPrice - position.quantity * position.avg_buy_price
+                          return `${pnl >= 0 ? "+" : ""}$${formatUSD(Math.abs(pnl))}`
+                        })()}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
-
-              <div className="flex items-center gap-2 mb-3">
-                <button
-                  onClick={() => setAmountType("usd")}
-                  className={`text-xs px-2 py-1 rounded transition-colors ${amountType === "usd" ? "bg-gray-100 dark:bg-gray-900 font-medium" : "text-gray-400"}`}
-                >
-                  USD
-                </button>
-                <button
-                  onClick={() => setAmountType("coin")}
-                  className={`text-xs px-2 py-1 rounded transition-colors ${amountType === "coin" ? "bg-gray-100 dark:bg-gray-900 font-medium" : "text-gray-400"}`}
-                >
-                  {coinSymbol}
-                </button>
-              </div>
-
-              <div className="relative mb-3">
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-colors font-mono"
+            ) : (
+              isLoggedIn && userId ? (
+                <LeveragedPanel
+                  symbol={symbol}
+                  coinId={coinId}
+                  coinName={coinName}
+                  coinImage={coinImage}
+                  currentPrice={ticker?.lastPrice ?? 0}
+                  userId={userId}
+                  balance={balance}
+                  onBalanceChange={(newBalance) => setBalance(newBalance)}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                  {amountType === "usd" ? "USD" : coinSymbol}
-                </span>
-              </div>
-
-              {orderType === "buy" && (
-                <div className="flex gap-1 mb-4">
-                  {[25, 50, 75, 100].map((pct) => (
-                    <button
-                      key={pct}
-                      onClick={() => {
-                        const val = (balance * pct) / 100
-                        setAmount(val.toFixed(2))
-                        setAmountType("usd")
-                      }}
-                      className="flex-1 text-xs py-1 border border-gray-200 dark:border-gray-800 rounded hover:bg-gray-50 dark:hover:bg-gray-950 transition-colors text-gray-400"
-                    >
-                      {pct}%
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {orderType === "sell" && position && (
-                <div className="flex gap-1 mb-4">
-                  {[25, 50, 75, 100].map((pct) => (
-                    <button
-                      key={pct}
-                      onClick={() => {
-                        const val = (position.quantity * pct) / 100
-                        setAmount(val.toFixed(6))
-                        setAmountType("coin")
-                      }}
-                      className="flex-1 text-xs py-1 border border-gray-200 dark:border-gray-800 rounded hover:bg-gray-50 dark:hover:bg-gray-950 transition-colors text-gray-400"
-                    >
-                      {pct}%
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {amount && ticker && parseFloat(amount) > 0 && (
-                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-950 rounded-lg space-y-1.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Price</span>
-                    <span className="font-mono">${formatPrice(ticker.lastPrice)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{coinSymbol} amount</span>
-                    <span className="font-mono">{orderCoinValue.toFixed(6)}</span>
-                  </div>
-                  <div className="flex justify-between font-medium border-t border-gray-200 dark:border-gray-800 pt-1.5">
-                    <span className="text-gray-400">Total</span>
-                    <span className="font-mono">${formatUSD(orderUsdValue)}</span>
-                  </div>
-                </div>
-              )}
-
-              {isLoggedIn ? (
-                <button
-                  onClick={handleOrder}
-                  disabled={orderLoading || !amount || parseFloat(amount) <= 0}
-                  className={`w-full py-3 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
-                    orderType === "buy"
-                      ? "bg-green-500 hover:bg-green-600 text-white"
-                      : "bg-red-500 hover:bg-red-600 text-white"
-                  }`}
-                >
-                  {orderLoading ? "Processing..." : orderType === "buy" ? `Buy ${coinSymbol}` : `Sell ${coinSymbol}`}
-                </button>
               ) : (
-                <Link
-                  href="/"
-                  className="block w-full py-3 text-sm font-medium text-center rounded-lg bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
-                >
-                  Log in to trade
-                </Link>
-              )}
-
-              {orderMessage && (
-                <div className={`mt-3 p-3 rounded-lg text-xs ${
-                  orderMessage.type === "success"
-                    ? "bg-green-50 dark:bg-green-950 text-green-600 dark:text-green-400"
-                    : "bg-red-50 dark:bg-red-950 text-red-500"
-                }`}>
-                  {orderMessage.text}
+                <div className="rounded-xl border border-gray-100 dark:border-gray-900 p-5">
+                  <Link href="/" className="block w-full py-3 text-sm font-medium text-center rounded-lg bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors">
+                    Log in to trade
+                  </Link>
                 </div>
-              )}
-
-              {position && position.quantity > 0 && ticker && (
-                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-900 space-y-1.5 text-xs">
-                  <p className="text-gray-400 font-medium mb-2">Your position</p>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Quantity</span>
-                    <span className="font-mono">{position.quantity.toFixed(6)} {coinSymbol}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Avg buy price</span>
-                    <span className="font-mono">${formatPrice(position.avg_buy_price)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Current value</span>
-                    <span className="font-mono">${formatUSD(position.quantity * ticker.lastPrice)}</span>
-                  </div>
-                  <div className="flex justify-between font-medium">
-                    <span className="text-gray-400">P&L</span>
-                    <span className={`font-mono ${
-                      position.quantity * ticker.lastPrice - position.quantity * position.avg_buy_price >= 0
-                        ? "text-green-600 dark:text-green-400"
-                        : "text-red-500"
-                    }`}>
-                      {(() => {
-                        const pnl = position.quantity * ticker.lastPrice - position.quantity * position.avg_buy_price
-                        return `${pnl >= 0 ? "+" : ""}$${formatUSD(Math.abs(pnl))}`
-                      })()}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+              )
+            )}
           </div>
         </div>
       </div>

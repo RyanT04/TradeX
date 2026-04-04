@@ -1,5 +1,7 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/client"
 import { TrendingUp, ShieldCheck, Zap, BarChart2, Globe, BookOpen } from "lucide-react"
 import Link from "next/link"
 
@@ -36,7 +38,38 @@ const features = [
   },
 ]
 
+const faqs = [
+  {
+    q: "Is this real money?",
+    a: "No. TradeX uses virtual funds — you never touch real money. You can practice freely without any financial risk.",
+  },
+  {
+    q: "Where does the price data come from?",
+    a: "Market data is sourced from CoinGecko and Bybit, giving you accurate real-time prices used by professional traders.",
+  },
+  {
+    q: "Can I lose my virtual balance?",
+    a: "Yes — just like real trading. If your trades go wrong your balance decreases, which is the point. Learning from losses is part of the experience.",
+  },
+  {
+    q: "How do I get started?",
+    a: "Create a free account, choose your starting balance, and you're ready to trade. No credit card or personal information required.",
+  },
+  {
+    q: "Is there a limit to how much I can trade?",
+    a: "No limits. Trade as much or as little as you want within your virtual balance.",
+  },
+]
+
 export default function AboutPage() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [openFaq, setOpenFaq] = useState<number | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => setIsLoggedIn(!!user))
+  }, [])
+
   return (
     <main className="min-h-screen bg-white dark:bg-black text-black dark:text-white">
 
@@ -99,6 +132,75 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* How it works */}
+      <section className="border-t border-gray-100 dark:border-gray-900 bg-gray-50 dark:bg-gray-950">
+        <div className="max-w-4xl mx-auto px-6 py-24">
+          <h2 className="text-3xl font-bold mb-3">How it works</h2>
+          <p className="text-gray-400 mb-14 max-w-xl">
+            From sign up to your first trade in under a minute.
+          </p>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              {
+                step: "01",
+                title: "Create your account",
+                description: "Sign up for free and choose your starting virtual balance — anywhere from $1,000 to a custom amount.",
+              },
+              {
+                step: "02",
+                title: "Explore the markets",
+                description: "Browse 100+ cryptocurrencies with live prices, 24h charts, and real market data powered by Bybit and CoinGecko.",
+              },
+              {
+                step: "03",
+                title: "Trade and track",
+                description: "Buy and sell coins, watch your portfolio grow or shrink in real time, and learn what works before risking real money.",
+              },
+            ].map((item) => (
+              <div key={item.step} className="relative">
+                <span className="text-5xl font-bold text-gray-100 dark:text-gray-900 select-none">
+                  {item.step}
+                </span>
+                <div className="-mt-4">
+                  <h3 className="text-sm font-semibold mb-2">{item.title}</h3>
+                  <p className="text-sm text-gray-400 leading-relaxed">{item.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="border-t border-gray-100 dark:border-gray-900">
+        <div className="max-w-4xl mx-auto px-6 py-24">
+          <h2 className="text-3xl font-bold mb-3">Frequently asked questions</h2>
+          <p className="text-gray-400 mb-14 max-w-xl">
+            Everything you need to know about TradeX.
+          </p>
+          <div className="divide-y divide-gray-100 dark:divide-gray-900">
+            {faqs.map((faq, i) => (
+              <div key={i} className="py-5">
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full flex items-center justify-between text-left gap-4"
+                >
+                  <span className="text-sm font-medium">{faq.q}</span>
+                  <span className="text-gray-400 shrink-0 text-lg leading-none">
+                    {openFaq === i ? "−" : "+"}
+                  </span>
+                </button>
+                {openFaq === i && (
+                  <p className="mt-3 text-sm text-gray-400 leading-relaxed pr-8">
+                    {faq.a}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="border-t border-gray-100 dark:border-gray-900">
         <div className="max-w-4xl mx-auto px-6 py-24 text-center">
@@ -107,12 +209,21 @@ export default function AboutPage() {
             Create a free account and start practicing with virtual funds today.
             No credit card required.
           </p>
-          <Link
-            href="/dashboard"
-            className="inline-block px-8 py-3 bg-black dark:bg-white text-white dark:text-black text-sm font-medium rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
-          >
-            Get started for free
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              href="/trade"
+              className="inline-block px-8 py-3 bg-black dark:bg-white text-white dark:text-black text-sm font-medium rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+            >
+              Go to trade
+            </Link>
+          ) : (
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("open-register"))}
+              className="inline-block px-8 py-3 bg-black dark:bg-white text-white dark:text-black text-sm font-medium rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+            >
+              Get started for free
+            </button>
+          )}
         </div>
       </section>
 

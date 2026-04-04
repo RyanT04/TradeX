@@ -22,6 +22,7 @@ interface RegisterDialogProps {
 
 export function RegisterDialog({ isOpen, onClose, onSwitchToLogin }: RegisterDialogProps) {
   const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -38,16 +39,54 @@ export function RegisterDialog({ isOpen, onClose, onSwitchToLogin }: RegisterDia
       return
     }
 
-    setLoading(true)
-    const supabase = createClient()
-    const { error } = await supabase.auth.signUp({ email, password })
-    setLoading(false)
-
-    if (error) {
-      setError(error.message)
+    if (!username.trim()) {
+      setError("Username is required")
       return
     }
 
+    if (username.length < 3) {
+      setError("Username must be at least 3 characters")
+      return
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setError("Username can only contain letters, numbers and underscores")
+      return
+    }
+
+    setLoading(true)
+    const supabase = createClient()
+
+    // check if username is taken
+    const { data: existing } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("username", username.trim())
+      .single()
+
+    if (existing) {
+      setError("Username is already taken")
+      setLoading(false)
+      return
+    }
+
+    // sign up
+    const { data, error: signUpError } = await supabase.auth.signUp({ email, password })
+    if (signUpError) {
+      setError(signUpError.message)
+      setLoading(false)
+      return
+    }
+
+    // create profile
+    if (data.user) {
+      await supabase.from("profiles").insert({
+        id: data.user.id,
+        username: username.trim(),
+      })
+    }
+
+    setLoading(false)
     onClose()
   }
 
@@ -63,6 +102,17 @@ export function RegisterDialog({ isOpen, onClose, onSwitchToLogin }: RegisterDia
         <CardContent>
           <form onSubmit={handleRegister}>
             <div className="flex flex-col gap-6">
+              <div className="grid gap-2">
+                <Label htmlFor="register-username">Username</Label>
+                <Input
+                  id="register-username"
+                  type="text"
+                  placeholder="johndoe"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
+              </div>
               <div className="grid gap-2">
                 <Label htmlFor="register-email">Email</Label>
                 <Input
