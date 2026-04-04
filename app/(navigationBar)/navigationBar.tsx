@@ -191,7 +191,10 @@ export function NavBar() {
       />
       <RegisterDialog
         isOpen={isRegisterOpen}
-        onClose={() => setIsRegisterOpen(false)}
+        onClose={() => {
+          setIsRegisterOpen(false)
+          if (user) router.push("/portfolio/setup")
+        }}
         onSwitchToLogin={() => {
           setIsRegisterOpen(false)
           setIsLoginOpen(true)

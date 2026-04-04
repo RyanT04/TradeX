@@ -52,7 +52,7 @@ export default function AboutPage() {
             </p>
             <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
               Whether you're completely new to crypto or an experienced trader testing
-              a new strategy, Tradex gives you a safe space to experiment, make mistakes,
+              a new strategy, TradeX gives you a safe space to experiment, make mistakes,
               and learn from them.
             </p>
           </div>
