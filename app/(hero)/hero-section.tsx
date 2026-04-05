@@ -65,7 +65,7 @@ export function Hero() {
       </section>
 
       {/* Stats */}
-      <section className="border-t border-gray-100 dark:border-gray-900 shrink-0">
+      <section className="border-t border-b border-gray-100 dark:border-gray-900 shrink-0 mb-24 sm:mb-32">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 text-center">
           {stats.map((stat) => (
             <div key={stat.label}>
