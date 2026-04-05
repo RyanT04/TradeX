@@ -74,7 +74,6 @@ export default function FavouritesPage() {
   }, [])
 
   async function fetchPrices(favCoins: FavCoin[]) {
-    // fetch all prices via Bybit
     await Promise.all(
       favCoins.map(async (coin) => {
         try {
@@ -96,8 +95,6 @@ export default function FavouritesPage() {
         }
       })
     )
-
-    // setup WebSocket for live updates
     setupWebSocket(favCoins)
   }
 
@@ -105,10 +102,8 @@ export default function FavouritesPage() {
     if (wsRef.current) wsRef.current.close()
     const symbols = favCoins.map((c) => `tickers.${c.bybit_symbol}`)
     if (symbols.length === 0) return
-
     const ws = new WebSocket("wss://stream.bybit.com/v5/public/spot")
     wsRef.current = ws
-
     ws.onopen = () => ws.send(JSON.stringify({ op: "subscribe", args: symbols }))
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data)
@@ -138,7 +133,7 @@ export default function FavouritesPage() {
 
   if (!isLoggedIn && !loading) {
     return (
-      <div className="max-w-6xl mx-auto px-6 pb-16">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 pb-16">
         <div className="rounded-xl border border-gray-100 dark:border-gray-900 py-24 text-center">
           <Star className="w-10 h-10 text-gray-200 dark:text-gray-800 mx-auto mb-4" />
           <p className="text-gray-400 mb-4">Log in to save and view your favourite coins</p>
@@ -150,9 +145,97 @@ export default function FavouritesPage() {
     )
   }
 
+  const emptyState = (colSpan: number) => (
+    <tr>
+      <td colSpan={colSpan} className="px-6 py-24 text-center">
+        <Star className="w-10 h-10 text-gray-200 dark:text-gray-800 mx-auto mb-3" />
+        <p className="text-gray-400 mb-1">No favourites yet</p>
+        <p className="text-xs text-gray-300 dark:text-gray-700">
+          Star a coin from the{" "}
+          <Link href="/markets/all" className="underline hover:text-black dark:hover:text-white">
+            All Markets
+          </Link>{" "}
+          tab to add it here
+        </p>
+      </td>
+    </tr>
+  )
+
   return (
-    <div className="max-w-6xl mx-auto px-6 pb-16">
-      <div className="rounded-xl border border-gray-100 dark:border-gray-900 overflow-hidden">
+    <div className="max-w-6xl mx-auto px-3 sm:px-6 pb-16">
+
+      {/* ── MOBILE card list (< md) ── */}
+      <div className="md:hidden rounded-xl border border-gray-100 dark:border-gray-900 overflow-hidden">
+        {loading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 dark:border-gray-900">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-900 animate-pulse shrink-0" />
+                <div>
+                  <div className="h-3.5 w-12 bg-gray-100 dark:bg-gray-900 rounded animate-pulse mb-1" />
+                  <div className="h-3 w-20 bg-gray-100 dark:bg-gray-900 rounded animate-pulse" />
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="h-3.5 w-16 bg-gray-100 dark:bg-gray-900 rounded animate-pulse mb-1" />
+                <div className="h-3 w-10 bg-gray-100 dark:bg-gray-900 rounded animate-pulse ml-auto" />
+              </div>
+            </div>
+          ))
+        ) : coins.length === 0 ? (
+          <div className="px-6 py-24 text-center">
+            <Star className="w-10 h-10 text-gray-200 dark:text-gray-800 mx-auto mb-3" />
+            <p className="text-gray-400 mb-1">No favourites yet</p>
+            <p className="text-xs text-gray-300 dark:text-gray-700">
+              Star a coin from the{" "}
+              <Link href="/markets/all" className="underline hover:text-black dark:hover:text-white">
+                All Markets
+              </Link>{" "}
+              tab to add it here
+            </p>
+          </div>
+        ) : (
+          coins.map((coin) => {
+            const change = coin.price_change_percentage_24h ?? 0
+            const positive = change >= 0
+            return (
+              <div key={coin.id} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 dark:border-gray-900 hover:bg-gray-50 dark:hover:bg-gray-950 transition-colors">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button onClick={() => removeFavourite(coin.coin_id)} className="text-yellow-400 hover:text-gray-300 transition-colors shrink-0">
+                    <Star className="w-4 h-4 fill-yellow-400" />
+                  </button>
+                  <img src={coin.coin_image} alt={coin.coin_name} width={32} height={32} className="rounded-full w-8 h-8 shrink-0" onError={(e) => { e.currentTarget.style.display = "none" }} />
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{coin.coin_symbol}</p>
+                    <p className="text-xs text-gray-400 truncate max-w-[100px]">{coin.coin_name}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <p className="font-mono font-medium text-sm">
+                      {coin.current_price ? `$${formatPrice(coin.current_price)}` : "—"}
+                    </p>
+                    {coin.price_change_percentage_24h !== null ? (
+                      <span className={`text-xs font-medium flex items-center justify-end gap-0.5 ${positive ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+                        {positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        {positive ? "+" : ""}{change.toFixed(2)}%
+                      </span>
+                    ) : (
+                      <div className="h-3 w-10 bg-gray-100 dark:bg-gray-900 rounded animate-pulse ml-auto mt-1" />
+                    )}
+                  </div>
+                  <Link href={`/trade/${coin.bybit_symbol}`} className="px-2.5 py-1.5 text-xs font-medium bg-black dark:bg-white text-white dark:text-black rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors">
+                    Trade
+                  </Link>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* ── DESKTOP table (≥ md) ── */}
+      <div className="hidden md:block rounded-xl border border-gray-100 dark:border-gray-900 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 dark:border-gray-900 bg-gray-50 dark:bg-gray-950">
@@ -160,8 +243,8 @@ export default function FavouritesPage() {
               <th className="text-left px-4 py-4 font-medium text-gray-400">Coin</th>
               <th className="text-right px-4 py-4 font-medium text-gray-400">Price</th>
               <th className="text-right px-4 py-4 font-medium text-gray-400">24h %</th>
-              <th className="text-right px-4 py-4 font-medium text-gray-400 hidden md:table-cell">24h High</th>
-              <th className="text-right px-4 py-4 font-medium text-gray-400 hidden md:table-cell">24h Low</th>
+              <th className="text-right px-4 py-4 font-medium text-gray-400 hidden lg:table-cell">24h High</th>
+              <th className="text-right px-4 py-4 font-medium text-gray-400 hidden lg:table-cell">24h Low</th>
               <th className="text-right px-4 py-4 font-medium text-gray-400">Action</th>
             </tr>
           </thead>
@@ -176,25 +259,10 @@ export default function FavouritesPage() {
                   ))}
                 </tr>
               ))
-            ) : coins.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-6 py-24 text-center">
-                  <Star className="w-10 h-10 text-gray-200 dark:text-gray-800 mx-auto mb-3" />
-                  <p className="text-gray-400 mb-1">No favourites yet</p>
-                  <p className="text-xs text-gray-300 dark:text-gray-700">
-                    Star a coin from the{" "}
-                    <Link href="/markets/all" className="underline hover:text-black dark:hover:text-white">
-                      All Markets
-                    </Link>{" "}
-                    tab to add it here
-                  </p>
-                </td>
-              </tr>
-            ) : (
+            ) : coins.length === 0 ? emptyState(7) : (
               coins.map((coin) => {
                 const change = coin.price_change_percentage_24h ?? 0
                 const positive = change >= 0
-
                 return (
                   <tr key={coin.id} className="border-b border-gray-50 dark:border-gray-900 hover:bg-gray-50 dark:hover:bg-gray-950 transition-colors">
                     <td className="px-4 py-4">
@@ -226,10 +294,10 @@ export default function FavouritesPage() {
                         <div className="h-4 bg-gray-100 dark:bg-gray-900 rounded animate-pulse w-16 ml-auto" />
                       )}
                     </td>
-                    <td className="px-4 py-4 text-right text-gray-500 hidden md:table-cell font-mono">
+                    <td className="px-4 py-4 text-right text-gray-500 hidden lg:table-cell font-mono">
                       {coin.high_24h ? `$${formatPrice(coin.high_24h)}` : "—"}
                     </td>
-                    <td className="px-4 py-4 text-right text-gray-500 hidden md:table-cell font-mono">
+                    <td className="px-4 py-4 text-right text-gray-500 hidden lg:table-cell font-mono">
                       {coin.low_24h ? `$${formatPrice(coin.low_24h)}` : "—"}
                     </td>
                     <td className="px-4 py-4 text-right">

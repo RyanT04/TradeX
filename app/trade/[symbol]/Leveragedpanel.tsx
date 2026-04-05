@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { createClient } from "@/lib/client"
-import { TrendingUp, TrendingDown, AlertTriangle, X, Zap } from "lucide-react"
+import { TrendingUp, TrendingDown, AlertTriangle, Zap } from "lucide-react"
 
 interface LeveragedPanelProps {
   symbol: string
@@ -384,9 +384,9 @@ export function LeveragedPanel({
                     <button
                       onClick={() => handleClosePosition(pos)}
                       disabled={closingId === pos.id}
-                      className="text-gray-400 hover:text-black dark:hover:text-white transition-colors disabled:opacity-50"
+                      className="px-2.5 py-1 text-xs font-medium bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors disabled:opacity-50"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      {closingId === pos.id ? "Closing..." : "Close"}
                     </button>
                   </div>
                   <div className="flex justify-between text-gray-400">
