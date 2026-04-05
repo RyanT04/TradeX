@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { createClient } from "@/lib/client"
 import { LoginDialog } from "./loginPage"
 import { RegisterDialog } from "./registerPage"
@@ -31,6 +31,7 @@ const NAV_LINKS = [
 
 export function NavBar() {
   const router = useRouter()
+  const pathname = usePathname()
   const [user, setUser] = React.useState<User | null>(null)
   const [username, setUsername] = React.useState<string | null>(null)
   const [avatar, setAvatar] = React.useState<string | null>(null)
@@ -46,7 +47,9 @@ export function NavBar() {
       .eq("id", userId)
       .single()
     if (data?.username) setUsername(data.username)
+    else setUsername(null)
     if (data?.avatar_url) setAvatar(data.avatar_url)
+    else setAvatar(null)
   }
 
   React.useEffect(() => {
@@ -67,7 +70,7 @@ export function NavBar() {
       }
     )
     return () => subscription.unsubscribe()
-  }, [])
+  }, [pathname])
 
   React.useEffect(() => {
     const handler = () => setIsRegisterOpen(true)
@@ -75,10 +78,9 @@ export function NavBar() {
     return () => window.removeEventListener("open-register", handler)
   }, [])
 
-  // close mobile menu on route change
   React.useEffect(() => {
     setIsMobileMenuOpen(false)
-  }, [router])
+  }, [pathname])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -107,7 +109,6 @@ export function NavBar() {
                 TradeX
               </Link>
 
-              {/* Desktop nav links */}
               <div className="hidden md:flex items-center">
                 {NAV_LINKS.map(({ href, label }) => (
                   <Link
@@ -173,7 +174,7 @@ export function NavBar() {
               )}
             </div>
 
-            {/* Mobile right: account dropdown + hamburger */}
+            {/* Mobile right */}
             <div className="flex items-center gap-2 md:hidden">
               {user ? (
                 <DropdownMenu modal={false}>

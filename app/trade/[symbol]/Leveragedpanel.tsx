@@ -46,11 +46,8 @@ function formatUSD(value: number) {
 }
 
 function calcLiquidationPrice(entryPrice: number, leverage: number, direction: "long" | "short") {
-  if (direction === "long") {
-    return entryPrice * (1 - 1 / leverage)
-  } else {
-    return entryPrice * (1 + 1 / leverage)
-  }
+  if (direction === "long") return entryPrice * (1 - 1 / leverage)
+  else return entryPrice * (1 + 1 / leverage)
 }
 
 function calcPnl(position: Position, currentPrice: number) {
@@ -160,7 +157,6 @@ export function LeveragedPanel({
     const newBalance = Math.max(0, balance - actualMargin)
 
     const supabase = createClient()
-
     await supabase.from("portfolios").update({ balance: newBalance }).eq("user_id", userId)
 
     const { data, error } = await supabase.from("leveraged_positions").insert({
@@ -185,10 +181,7 @@ export function LeveragedPanel({
       setMargin("")
       const { pnl, pnlPercent } = calcPnl(data, currentPrice)
       setPositions((prev) => [{ ...data, current_price: currentPrice, pnl, pnl_percent: pnlPercent }, ...prev])
-      setOrderMsg({
-        text: `Opened ${direction.toUpperCase()} ${leverage}x — $${formatUSD(size)} position`,
-        type: "success"
-      })
+      setOrderMsg({ text: `Opened ${direction.toUpperCase()} ${leverage}x — $${formatUSD(size)} position`, type: "success" })
     }
 
     setOrderLoading(false)
@@ -363,43 +356,62 @@ export function LeveragedPanel({
       {thisSymbolPositions.length > 0 && (
         <div>
           <p className="text-xs text-gray-400 font-medium mb-3">Open positions</p>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {thisSymbolPositions.map((pos) => {
               const pnl = pos.pnl ?? 0
               const pnlPct = pos.pnl_percent ?? 0
               const positive = pnl >= 0
               return (
-                <div key={pos.id} className="p-3 bg-gray-50 dark:bg-gray-950 rounded-lg text-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-1.5 py-0.5 rounded font-medium ${
-                        pos.direction === "long"
-                          ? "bg-green-100 dark:bg-green-950 text-green-600 dark:text-green-400"
-                          : "bg-red-100 dark:bg-red-950 text-red-500"
-                      }`}>
-                        {pos.direction === "long" ? "LONG" : "SHORT"} {pos.leverage}x
-                      </span>
-                      <span className="text-gray-400">${formatUSD(pos.size_usd)} size</span>
+                <div key={pos.id} className="p-4 bg-gray-50 dark:bg-gray-950 rounded-lg space-y-2">
+
+                  {/* Direction + leverage */}
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded text-sm font-bold ${
+                      pos.direction === "long"
+                        ? "bg-green-100 dark:bg-green-950 text-green-600 dark:text-green-400"
+                        : "bg-red-100 dark:bg-red-950 text-red-500"
+                    }`}>
+                      {pos.direction === "long" ? "LONG" : "SHORT"}
+                    </span>
+                    <span className="text-sm font-semibold">{pos.leverage}x leverage</span>
+                  </div>
+
+                  {/* Details */}
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Size</span>
+                      <span className="font-mono font-medium">${formatUSD(pos.size_usd)}</span>
                     </div>
-                    <button
-                      onClick={() => handleClosePosition(pos)}
-                      disabled={closingId === pos.id}
-                      className="px-2.5 py-1 text-xs font-medium bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors disabled:opacity-50"
-                    >
-                      {closingId === pos.id ? "Closing..." : "Close"}
-                    </button>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Entry</span>
+                      <span className="font-mono">${formatPrice(pos.entry_price)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Liq.</span>
+                      <span className="font-mono text-red-500">${formatPrice(pos.liquidation_price)}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-gray-400">
-                    <span>Entry: ${formatPrice(pos.entry_price)}</span>
-                    <span>Liq: ${formatPrice(pos.liquidation_price)}</span>
-                  </div>
+
+                  {/* P&L */}
                   <div className="flex justify-between items-center border-t border-gray-200 dark:border-gray-800 pt-2">
-                    <span className="text-gray-400">P&L</span>
-                    <span className={`font-medium font-mono flex items-center gap-1 ${positive ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
-                      {positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                      {positive ? "+" : ""}{pnlPct.toFixed(2)}% ({positive ? "+" : ""}${formatUSD(Math.abs(pnl))})
+                    <span className="text-sm text-gray-400">P&L</span>
+                    <span className={`font-medium font-mono flex items-center gap-1 text-sm ${positive ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+                      {positive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                      {positive ? "+" : ""}{pnlPct.toFixed(2)}%
+                      <span className={positive ? "text-green-600 dark:text-green-400" : "text-red-500"}>
+                        ({positive ? "+" : ""}${formatUSD(Math.abs(pnl))})
+                      </span>
                     </span>
                   </div>
+
+                  {/* Close button */}
+                  <button
+                    onClick={() => handleClosePosition(pos)}
+                    disabled={closingId === pos.id}
+                    className="w-full py-2 text-sm font-medium bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors disabled:opacity-50"
+                  >
+                    {closingId === pos.id ? "Closing..." : "Close position"}
+                  </button>
                 </div>
               )
             })}
@@ -417,15 +429,13 @@ export function LeveragedPanel({
               return (
                 <div key={pos.id} className="p-3 bg-gray-50 dark:bg-gray-950 rounded-lg text-xs">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-1.5 py-0.5 rounded font-medium ${
-                        pos.direction === "long"
-                          ? "bg-green-100 dark:bg-green-950 text-green-600 dark:text-green-400"
-                          : "bg-red-100 dark:bg-red-950 text-red-500"
-                      }`}>
-                        {pos.coin_symbol} {pos.direction.toUpperCase()} {pos.leverage}x
-                      </span>
-                    </div>
+                    <span className={`px-1.5 py-0.5 rounded font-medium ${
+                      pos.direction === "long"
+                        ? "bg-green-100 dark:bg-green-950 text-green-600 dark:text-green-400"
+                        : "bg-red-100 dark:bg-red-950 text-red-500"
+                    }`}>
+                      {pos.coin_symbol} {pos.direction.toUpperCase()} {pos.leverage}x
+                    </span>
                     <span className={`font-mono font-medium ${positive ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
                       {positive ? "+" : ""}${formatUSD(pnl)}
                     </span>

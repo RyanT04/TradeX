@@ -445,7 +445,7 @@ export default function TradePage({ params }: PageProps) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
           {/* Chart */}
           <div className="lg:col-span-3">
@@ -476,7 +476,7 @@ export default function TradePage({ params }: PageProps) {
           </div>
 
           {/* Order panel */}
-          <div className="lg:col-span-1 space-y-4">
+          <div className="lg:col-span-2">
 
             {/* Mode tabs */}
             <div className="flex rounded-lg overflow-hidden border border-gray-100 dark:border-gray-900">

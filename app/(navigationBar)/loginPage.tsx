@@ -23,7 +23,6 @@ interface LoginDialogProps {
 export function LoginDialog({ isOpen, onClose, onSwitchToRegister }: LoginDialogProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [role, setRole] = useState<"user" | "admin">("user")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -43,19 +42,9 @@ export function LoginDialog({ isOpen, onClose, onSwitchToRegister }: LoginDialog
       return
     }
 
-    if (role === "admin") {
-      const res = await fetch("/api/admin/check")
-      const { isAdmin } = await res.json()
-      if (!isAdmin) {
-        setError("This account does not have admin privileges.")
-        setLoading(false)
-        return
-      }
-    }
-
     setLoading(false)
     onClose()
-    window.location.href = role === "admin" ? "/admin" : "/"
+    window.location.href = "/"
   }
 
   const handleGoogleLogin = async () => {
@@ -78,18 +67,6 @@ export function LoginDialog({ isOpen, onClose, onSwitchToRegister }: LoginDialog
         <CardContent>
           <form onSubmit={handleLogin}>
             <div className="flex flex-col gap-6">
-              <div className="grid gap-2">
-                <Label htmlFor="role">Login as</Label>
-                <select
-                  id="role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as "user" | "admin")}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -123,23 +100,21 @@ export function LoginDialog({ isOpen, onClose, onSwitchToRegister }: LoginDialog
             </div>
           </form>
         </CardContent>
-        {role === "user" && (
-          <CardFooter className="flex-col gap-2">
-            <Button type="button" variant="outline" className="w-full" onClick={handleGoogleLogin}>
-              Login with Google
-            </Button>
-            <div className="text-center text-sm mt-2">
-              Don't have an account?{" "}
-              <a
-                href="#"
-                className="underline hover:text-blue-600"
-                onClick={(e) => { e.preventDefault(); onSwitchToRegister() }}
-              >
-                Register
-              </a>
-            </div>
-          </CardFooter>
-        )}
+        <CardFooter className="flex-col gap-2">
+          <Button type="button" variant="outline" className="w-full" onClick={handleGoogleLogin}>
+            Login with Google
+          </Button>
+          <div className="text-center text-sm mt-2">
+            Don't have an account?{" "}
+            <a
+              href="#"
+              className="underline hover:text-blue-600"
+              onClick={(e) => { e.preventDefault(); onSwitchToRegister() }}
+            >
+              Register
+            </a>
+          </div>
+        </CardFooter>
       </Card>
     </div>
   )
