@@ -68,6 +68,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile>({ username: null, avatar_url: null })
   const [loading, setLoading] = useState(true)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isGoogleUser, setIsGoogleUser] = useState(false)
 
   // avatar
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null)
@@ -98,6 +99,11 @@ export default function SettingsPage() {
       if (!user) { setLoading(false); return }
       setIsLoggedIn(true)
       setUserId(user.id)
+
+      // detect Google OAuth users
+      const isGoogle = user.app_metadata?.provider === "google" ||
+        user.identities?.some((i: any) => i.provider === "google") === true
+      setIsGoogleUser(isGoogle)
 
       const { data } = await supabase
         .from("profiles")
@@ -159,6 +165,7 @@ export default function SettingsPage() {
 
     const supabase = createClient()
 
+    // check if taken by another user
     const { data: existing } = await supabase
       .from("profiles")
       .select("id")
@@ -167,7 +174,7 @@ export default function SettingsPage() {
       .single()
 
     if (existing) {
-      setUsernameMsg({ text: "Username is already taken", type: "error" })
+      setUsernameMsg({ text: "That username is already taken", type: "error" })
       setUsernameLoading(false)
       return
     }
@@ -361,43 +368,45 @@ export default function SettingsPage() {
               </form>
             </Section>
 
-            {/* Password */}
-            <Section title="Password" description="Update your account password" icon={Lock}>
-              <form onSubmit={handlePasswordUpdate} className="space-y-3">
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Current password"
-                  required
-                  className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-colors"
-                />
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password"
-                  required
-                  className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-colors"
-                />
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  required
-                  className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-colors"
-                />
-                <button
-                  type="submit"
-                  disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
-                  className="px-4 py-2 text-sm font-medium bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors disabled:opacity-50"
-                >
-                  {passwordLoading ? "Updating..." : "Update password"}
-                </button>
-                <StatusMessage message={passwordMsg} />
-              </form>
-            </Section>
+            {/* Password — hidden for Google users */}
+            {!isGoogleUser && (
+              <Section title="Password" description="Update your account password" icon={Lock}>
+                <form onSubmit={handlePasswordUpdate} className="space-y-3">
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Current password"
+                    required
+                    className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-colors"
+                  />
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="New password"
+                    required
+                    className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-colors"
+                  />
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    required
+                    className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg outline-none focus:border-gray-400 dark:focus:border-gray-600 transition-colors"
+                  />
+                  <button
+                    type="submit"
+                    disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
+                    className="px-4 py-2 text-sm font-medium bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    {passwordLoading ? "Updating..." : "Update password"}
+                  </button>
+                  <StatusMessage message={passwordMsg} />
+                </form>
+              </Section>
+            )}
 
             {/* Reset portfolio */}
             <Section title="Reset portfolio" description="Start fresh with a new virtual balance — all trades and holdings will be deleted" icon={RefreshCw}>

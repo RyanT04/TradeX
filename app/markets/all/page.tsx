@@ -24,24 +24,24 @@ const PAGE_SIZE = 20
 const COINGECKO_TO_BYBIT: Record<string, string> = {
   bitcoin: "BTCUSDT",
   ethereum: "ETHUSDT",
-  solana: "SOLUSDT",
   binancecoin: "BNBUSDT",
+  solana: "SOLUSDT",
   ripple: "XRPUSDT",
-  cardano: "ADAUSDT",
   dogecoin: "DOGEUSDT",
+  tron: "TRXUSDT",
+  cardano: "ADAUSDT",
+  "shiba-inu": "SHIBUSDT",
   "avalanche-2": "AVAXUSDT",
-  polkadot: "DOTUSDT",
-  "matic-network": "MATICUSDT",
   chainlink: "LINKUSDT",
-  uniswap: "UNIUSDT",
-  litecoin: "LTCUSDT",
-  cosmos: "ATOMUSDT",
-  "near-protocol": "NEARUSDT",
-  aptos: "APTUSDT",
-  arbitrum: "ARBUSDT",
-  optimism: "OPUSDT",
-  "injective-protocol": "INJUSDT",
+  "the-open-network": "TONUSDT",
   sui: "SUIUSDT",
+  stellar: "XLMUSDT",
+  polkadot: "DOTUSDT",
+  "hedera-hashgraph": "HBARUSDT",
+  "bitcoin-cash": "BCHUSDT",
+  litecoin: "LTCUSDT",
+  uniswap: "UNIUSDT",
+  near: "NEARUSDT",
 }
 
 const POPULAR_IDS = Object.keys(COINGECKO_TO_BYBIT)
@@ -86,6 +86,11 @@ export default function AllMarketsPage() {
   const pollIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const extraCoinsCountRef = useRef(0)
+  const popularCoinsRef = useRef<Coin[]>([])
+
+  useEffect(() => {
+    popularCoinsRef.current = popularCoins
+  }, [popularCoins])
 
   useEffect(() => {
     const supabase = createClient()
@@ -121,36 +126,114 @@ export default function AllMarketsPage() {
     }
   }
 
+  // Step 1: fetch metadata from CoinGecko (name, image, market_cap for ordering)
+  // Step 2: immediately fetch live prices from Bybit REST for all popular coins
+  // Step 3: set up WebSocket for continuous live updates
   async function fetchPopularCoins() {
     try {
-      let res: Response
+      let cgData: any[] = []
       try {
         const ids = POPULAR_IDS.join(",")
-        res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`)
+        const res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`)
+        if (res.status === 429) {
+          await new Promise((r) => setTimeout(r, 15000))
+          return fetchPopularCoins()
+        }
+        const json = await res.json()
+        if (Array.isArray(json)) cgData = json
       } catch {
-        await new Promise((resolve) => setTimeout(resolve, 15000))
-        return fetchPopularCoins()
+        // CoinGecko failed — build minimal metadata so Bybit can still provide prices
+        cgData = POPULAR_IDS.map((id) => ({
+          id, symbol: COINGECKO_TO_BYBIT[id].replace("USDT", "").toLowerCase(),
+          name: id, image: "", market_cap: 0, total_volume: 0,
+          current_price: 0, price_change_percentage_24h: 0, high_24h: 0, low_24h: 0,
+        }))
       }
-      if (res.status === 429) {
-        await new Promise((resolve) => setTimeout(resolve, 15000))
-        return fetchPopularCoins()
-      }
-      const data = await res.json()
-      if (!Array.isArray(data)) return
-      const mapped: Coin[] = data.map((c: any) => ({
+
+      const mapped: Coin[] = cgData.map((c: any) => ({
         id: c.id, symbol: c.symbol.toUpperCase(), name: c.name, image: c.image,
-        current_price: c.current_price, price_change_percentage_24h: c.price_change_percentage_24h,
-        high_24h: c.high_24h, low_24h: c.low_24h, total_volume: c.total_volume,
-        market_cap: c.market_cap, bybitSymbol: COINGECKO_TO_BYBIT[c.id],
+        current_price: c.current_price ?? 0, price_change_percentage_24h: c.price_change_percentage_24h ?? 0,
+        high_24h: c.high_24h ?? 0, low_24h: c.low_24h ?? 0,
+        total_volume: c.total_volume ?? 0, market_cap: c.market_cap ?? 0,
+        bybitSymbol: COINGECKO_TO_BYBIT[c.id],
       }))
+
       const ordered = POPULAR_IDS.map((id) => mapped.find((c) => c.id === id)).filter(Boolean) as Coin[]
       setPopularCoins(ordered)
-      setLastUpdated(new Date())
       setLoading(false)
+
+      // fetch live Bybit prices immediately after metadata loads
+      await fetchBybitPricesForPopular(ordered)
+
+      // then set up WebSocket for continuous live updates
+      setupWebSocket(ordered)
     } catch (err) {
       console.error("Failed to fetch popular coins", err)
       setLoading(false)
     }
+  }
+
+  async function fetchBybitPricesForPopular(coins: Coin[]) {
+    await Promise.all(coins.map(async (coin) => {
+      try {
+        const res = await fetch(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${coin.bybitSymbol}`)
+        const data = await res.json()
+        const ticker = data.result?.list?.[0]
+        if (!ticker) return
+        setPopularCoins((prev) => prev.map((c) =>
+          c.bybitSymbol === coin.bybitSymbol ? {
+            ...c,
+            current_price: parseFloat(ticker.lastPrice),
+            high_24h: parseFloat(ticker.highPrice24h),
+            low_24h: parseFloat(ticker.lowPrice24h),
+            price_change_percentage_24h: parseFloat(ticker.price24hPcnt) * 100,
+          } : c
+        ))
+      } catch {}
+    }))
+    setLastUpdated(new Date())
+  }
+
+  function setupWebSocket(coins: Coin[]) {
+    if (wsRef.current) {
+      wsRef.current.onclose = null
+      wsRef.current.close()
+    }
+    const symbols = coins.map((c) => `tickers.${c.bybitSymbol}`)
+    if (symbols.length === 0) return
+
+    const ws = new WebSocket("wss://stream.bybit.com/v5/public/spot")
+    wsRef.current = ws
+
+    ws.onopen = () => {
+      // Bybit limit is 10 args per subscribe message — split into chunks
+      const chunkSize = 10
+      for (let i = 0; i < symbols.length; i += chunkSize) {
+        ws.send(JSON.stringify({ op: "subscribe", args: symbols.slice(i, i + chunkSize) }))
+      }
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data)
+        if (msg.data && msg.data.symbol) {
+          const sym = msg.data.symbol
+          setPopularCoins((prev) => prev.map((c) =>
+            c.bybitSymbol === sym ? {
+              ...c,
+              current_price: msg.data.lastPrice ? parseFloat(msg.data.lastPrice) : c.current_price,
+              high_24h: msg.data.highPrice24h ? parseFloat(msg.data.highPrice24h) : c.high_24h,
+              low_24h: msg.data.lowPrice24h ? parseFloat(msg.data.lowPrice24h) : c.low_24h,
+              price_change_percentage_24h: msg.data.price24hPcnt ? parseFloat(msg.data.price24hPcnt) * 100 : c.price_change_percentage_24h,
+            } : c
+          ))
+          setLastUpdated(new Date())
+        }
+      } catch {}
+    }
+
+    ws.onclose = () => setTimeout(() => setupWebSocket(popularCoinsRef.current), 3000)
+    ws.onerror = () => ws.close()
   }
 
   async function fetchExtraCoins(pageNum: number, append = false) {
@@ -230,32 +313,6 @@ export default function AllMarketsPage() {
     }
   }
 
-  function setupWebSocket(coins: Coin[]) {
-    if (wsRef.current) wsRef.current.close()
-    const symbols = coins.map((c) => `tickers.${c.bybitSymbol}`)
-    if (symbols.length === 0) return
-    const ws = new WebSocket("wss://stream.bybit.com/v5/public/spot")
-    wsRef.current = ws
-    ws.onopen = () => ws.send(JSON.stringify({ op: "subscribe", args: symbols }))
-    ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data)
-      if (msg.data && msg.data.symbol) {
-        const sym = msg.data.symbol
-        setPopularCoins((prev) => prev.map((c) =>
-          c.bybitSymbol === sym ? {
-            ...c,
-            current_price: msg.data.lastPrice ? parseFloat(msg.data.lastPrice) : c.current_price,
-            high_24h: msg.data.highPrice24h ? parseFloat(msg.data.highPrice24h) : c.high_24h,
-            low_24h: msg.data.lowPrice24h ? parseFloat(msg.data.lowPrice24h) : c.low_24h,
-            price_change_percentage_24h: msg.data.price24hPcnt ? parseFloat(msg.data.price24hPcnt) * 100 : c.price_change_percentage_24h,
-          } : c
-        ))
-      }
-    }
-    ws.onclose = () => setTimeout(() => setupWebSocket(coins), 3000)
-    ws.onerror = () => ws.close()
-  }
-
   async function fetchSingleBybit(bybitSymbol: string) {
     try {
       const res = await fetch(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${bybitSymbol}`)
@@ -287,11 +344,12 @@ export default function AllMarketsPage() {
   }
 
   useEffect(() => {
-    fetchPopularCoins().then(() => {
-      setPopularCoins((current) => { setupWebSocket(current); return current })
-    })
+    fetchPopularCoins()
     return () => {
-      wsRef.current?.close()
+      if (wsRef.current) {
+        wsRef.current.onclose = null
+        wsRef.current.close()
+      }
       stopAllPolling()
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
     }
@@ -331,7 +389,7 @@ export default function AllMarketsPage() {
   }
 
   const allCoins = showExtra ? [...popularCoins, ...extraCoins] : popularCoins
-  const filtered = (search ? searchResults : allCoins).sort((a, b) => {
+  const filtered = [...(search ? searchResults : allCoins)].sort((a, b) => {
     const aVal = a[sortKey] ?? 0
     const bVal = b[sortKey] ?? 0
     if (aVal < bVal) return sortDir === "asc" ? -1 : 1
@@ -418,12 +476,11 @@ export default function AllMarketsPage() {
             const isFav = favourites.has(coin.id)
             return (
               <div key={coin.id} className="flex items-center justify-between px-4 py-3 border-b border-gray-50 dark:border-gray-900 hover:bg-gray-50 dark:hover:bg-gray-950 transition-colors">
-                {/* Left: star + coin info */}
                 <div className="flex items-center gap-3 min-w-0">
                   <button onClick={() => toggleFavourite(coin)} className="text-gray-300 hover:text-yellow-400 transition-colors shrink-0">
                     <Star className={`w-4 h-4 ${isFav ? "fill-yellow-400 text-yellow-400" : ""}`} />
                   </button>
-                  <img src={coin.image} alt={coin.name} width={32} height={32} className="rounded-full w-8 h-8 shrink-0" onError={(e) => { e.currentTarget.style.display = "none" }} />
+                  {coin.image ? <img src={coin.image} alt={coin.name} width={32} height={32} className="rounded-full w-8 h-8 shrink-0" onError={(e) => { e.currentTarget.style.display = "none" }} /> : <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-900 shrink-0" />}
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="font-medium text-sm">{coin.symbol}</p>
@@ -434,8 +491,6 @@ export default function AllMarketsPage() {
                     <p className="text-xs text-gray-400 truncate max-w-[100px]">{coin.name}</p>
                   </div>
                 </div>
-
-                {/* Right: price + change + trade */}
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="text-right">
                     <p className="font-mono font-medium text-sm">${formatPrice(coin.current_price)}</p>
@@ -444,10 +499,7 @@ export default function AllMarketsPage() {
                       {positive ? "+" : ""}{change.toFixed(2)}%
                     </span>
                   </div>
-                  <Link
-                    href={`/trade/${coin.bybitSymbol}`}
-                    className="px-2.5 py-1.5 text-xs font-medium bg-black dark:bg-white text-white dark:text-black rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
-                  >
+                  <Link href={`/trade/${coin.bybitSymbol}`} className="px-2.5 py-1.5 text-xs font-medium bg-black dark:bg-white text-white dark:text-black rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors">
                     Trade
                   </Link>
                 </div>
@@ -503,7 +555,7 @@ export default function AllMarketsPage() {
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
-                          <img src={coin.image} alt={coin.name} width={32} height={32} className="rounded-full w-8 h-8" onError={(e) => { e.currentTarget.style.display = "none" }} />
+                          {coin.image ? <img src={coin.image} alt={coin.name} width={32} height={32} className="rounded-full w-8 h-8" onError={(e) => { e.currentTarget.style.display = "none" }} /> : <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-900" />}
                           <div>
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{coin.symbol}</p>
@@ -559,7 +611,7 @@ export default function AllMarketsPage() {
       )}
 
       <p className="text-xs text-gray-300 dark:text-gray-700 mt-6 text-center">
-        Market data via CoinGecko · Popular coins update live via Bybit WebSocket · Others update every 3s
+        Popular coins update live via Bybit WebSocket · Others update every 3s
       </p>
     </div>
   )

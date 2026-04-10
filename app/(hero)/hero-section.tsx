@@ -7,6 +7,7 @@ import Link from "next/link"
 const stats = [
   { value: "100+", label: "Cryptocurrencies" },
   { value: "$0", label: "To start trading" },
+  { value: "0%", label: "Trading fees" },
   { value: "24/7", label: "Market access" },
   { value: "Live", label: "Price data" },
 ]
@@ -66,7 +67,7 @@ export function Hero() {
 
       {/* Stats */}
       <section className="border-t border-b border-gray-100 dark:border-gray-900 shrink-0 mb-24 sm:mb-32">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 text-center">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 grid grid-cols-3 md:grid-cols-5 gap-6 sm:gap-8 text-center">
           {stats.map((stat) => (
             <div key={stat.label}>
               <p className="text-2xl sm:text-3xl font-bold">{stat.value}</p>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/client"
-import { TrendingUp, ShieldCheck, Zap, BarChart2, Globe, BookOpen } from "lucide-react"
+import { TrendingUp, ShieldCheck, Zap, BarChart2, Globe, BookOpen, BadgePercent } from "lucide-react"
 import Link from "next/link"
 
 const features = [
@@ -17,9 +17,14 @@ const features = [
     description: "Use virtual funds to build your skills without risking real money. Perfect for beginners and veterans alike.",
   },
   {
+    icon: BadgePercent,
+    title: "Zero trading fees",
+    description: "No fees, no spreads, no hidden costs. Every virtual dollar goes exactly where you put it — unlike real exchanges.",
+  },
+  {
     icon: Zap,
     title: "Instant order execution",
-    description: "Market, limit, and stop orders executed instantly. Experience how real trading platforms feel.",
+    description: "Orders executed instantly at live market prices. Experience how real trading platforms feel.",
   },
   {
     icon: BarChart2,
@@ -42,6 +47,10 @@ const faqs = [
   {
     q: "Is this real money?",
     a: "No. TradeX uses virtual funds — you never touch real money. You can practice freely without any financial risk.",
+  },
+  {
+    q: "Are there any trading fees?",
+    a: "No. TradeX has zero trading fees. Unlike real exchanges which charge a fee per trade, every transaction on TradeX is completely free — so you can focus purely on learning without fees eating into your virtual balance.",
   },
   {
     q: "Where does the price data come from?",
@@ -93,7 +102,7 @@ export default function AboutPage() {
             {[
               "Sign up and get virtual funds instantly",
               "Browse live crypto markets in real time",
-              "Place trades just like a real exchange",
+              "Place trades with zero fees, just like a real exchange",
               "Track your portfolio performance over time",
               "Refine your strategy before going live",
             ].map((step, i) => (
@@ -154,7 +163,7 @@ export default function AboutPage() {
               {
                 step: "03",
                 title: "Trade and track",
-                description: "Buy and sell coins, watch your portfolio grow or shrink in real time, and learn what works before risking real money.",
+                description: "Buy and sell coins with zero fees, watch your portfolio grow or shrink in real time, and learn what works before risking real money.",
               },
             ].map((item) => (
               <div key={item.step} className="relative">
@@ -207,7 +216,7 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold mb-4">Ready to start trading?</h2>
           <p className="text-gray-400 mb-8 max-w-md mx-auto">
             Create a free account and start practicing with virtual funds today.
-            No credit card required.
+            No credit card required. No trading fees. Ever.
           </p>
           {isLoggedIn ? (
             <Link
