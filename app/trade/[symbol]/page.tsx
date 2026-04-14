@@ -44,6 +44,30 @@ const INTERVALS = [
   { label: "1D", value: "D" },
 ]
 
+// Mapping from Bybit symbol to CoinGecko ID and display name
+const SYMBOL_META: Record<string, { id: string; name: string }> = {
+  BTCUSDT: { id: "bitcoin", name: "Bitcoin" },
+  ETHUSDT: { id: "ethereum", name: "Ethereum" },
+  BNBUSDT: { id: "binancecoin", name: "BNB" },
+  SOLUSDT: { id: "solana", name: "Solana" },
+  XRPUSDT: { id: "ripple", name: "XRP" },
+  DOGEUSDT: { id: "dogecoin", name: "Dogecoin" },
+  TRXUSDT: { id: "tron", name: "TRON" },
+  ADAUSDT: { id: "cardano", name: "Cardano" },
+  SHIBUSDT: { id: "shiba-inu", name: "Shiba Inu" },
+  AVAXUSDT: { id: "avalanche-2", name: "Avalanche" },
+  LINKUSDT: { id: "chainlink", name: "Chainlink" },
+  TONUSDT: { id: "the-open-network", name: "Toncoin" },
+  SUIUSDT: { id: "sui", name: "Sui" },
+  XLMUSDT: { id: "stellar", name: "Stellar" },
+  DOTUSDT: { id: "polkadot", name: "Polkadot" },
+  HBARUSDT: { id: "hedera-hashgraph", name: "Hedera" },
+  BCHUSDT: { id: "bitcoin-cash", name: "Bitcoin Cash" },
+  LTCUSDT: { id: "litecoin", name: "Litecoin" },
+  UNIUSDT: { id: "uniswap", name: "Uniswap" },
+  NEARUSDT: { id: "near", name: "NEAR Protocol" },
+}
+
 type TradeMode = "spot" | "leverage"
 
 export default function TradePage({ params }: PageProps) {
@@ -78,17 +102,24 @@ export default function TradePage({ params }: PageProps) {
     })
   }, [params])
 
+  // Resolve coin metadata from local map — no CoinGecko coin lookup needed
   useEffect(() => {
     if (!symbol) return
-    const base = symbol.replace("USDT", "").toLowerCase()
-    fetch(`https://api.coingecko.com/api/v3/coins/${base}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.name) setCoinName(data.name)
-        if (data.image?.small) setCoinImage(data.image.small)
-        if (data.id) setCoinId(data.id)
-      })
-      .catch(() => setCoinName(symbol.replace("USDT", "")))
+    const meta = SYMBOL_META[symbol]
+    if (meta) {
+      setCoinId(meta.id)
+      setCoinName(meta.name)
+      // fetch image from CoinGecko only if we know the correct ID
+      fetch(`https://api.coingecko.com/api/v3/coins/${meta.id}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false`)
+        .then((r) => r.json())
+        .then((data) => { if (data.image?.small) setCoinImage(data.image.small) })
+        .catch(() => {})
+    } else {
+      // fallback for unknown/extra symbols
+      const base = symbol.replace("USDT", "")
+      setCoinId(base.toLowerCase())
+      setCoinName(base)
+    }
   }, [symbol])
 
   useEffect(() => {
@@ -106,12 +137,13 @@ export default function TradePage({ params }: PageProps) {
         .single()
       if (portfolioData) setBalance(portfolioData.balance)
 
+      // maybeSingle() avoids 406 error when no holding row exists
       const { data: holdingData } = await supabase
         .from("holdings")
         .select("quantity, avg_buy_price")
         .eq("user_id", user.id)
         .eq("bybit_symbol", symbol)
-        .single()
+        .maybeSingle()
       if (holdingData) setPosition(holdingData)
     })
   }, [symbol])
@@ -295,7 +327,7 @@ export default function TradePage({ params }: PageProps) {
           .select("quantity, avg_buy_price")
           .eq("user_id", userId)
           .eq("bybit_symbol", symbol)
-          .single()
+          .maybeSingle()
 
         if (existing) {
           const newQty = existing.quantity + actualCoinAmount

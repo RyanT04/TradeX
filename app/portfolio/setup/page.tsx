@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/client"
 import { useRouter } from "next/navigation"
 
@@ -11,7 +11,19 @@ export default function PortfolioSetupPage() {
   const [custom, setCustom] = useState("")
   const [useCustom, setUseCustom] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        router.replace("/")
+        return
+      }
+      setAuthChecked(true)
+    })
+  }, [])
 
   async function handleStart() {
     setLoading(true)
@@ -26,13 +38,15 @@ export default function PortfolioSetupPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    await supabase.from("portfolios").insert({ 
-      user_id: user.id, 
+    await supabase.from("portfolios").insert({
+      user_id: user.id,
       balance,
       starting_balance: balance
     })
     router.push("/portfolio")
   }
+
+  if (!authChecked) return null
 
   return (
     <main className="min-h-screen bg-white dark:bg-black text-black dark:text-white flex items-center justify-center px-6">
